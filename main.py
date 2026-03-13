@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+from datetime import datetime
 import os
 
 # Load environment variables
@@ -11,7 +12,7 @@ from backend.database import Base, engine, SessionLocal
 from backend.models.model import User
 from backend.schemas.user_schemas import UserCreate, UserLogin, SkillsInput
 from backend.auth.auth_handler import hash_password, verify_password, create_token
-from backend.ml.career_predictor import predict_career, get_all_roles
+from backend.ml.career_predictor import get_all_roles
 from backend.ml.advanced_predictor import (
     predict_career_with_confidence,
     analyze_skill_gap,
@@ -23,19 +24,21 @@ from backend.resume.skill_extractor import extract_skills
 from backend.resume.gemini_analyzer import analyze_resume_with_gemini
 from backend.chatbot.gemini_chatbot import get_chatbot_response
 
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="TalentIQ API",
-    description="A career prediction and resume analysis platform",
+    description="AI-powered career prediction and resume analysis platform",
     version="1.0.0"
 )
+
 
 # CORS Configuration
 origins = [
     "http://localhost:3000",
-    "https://talent-iq-frontend-bice.vercel.app/"
+    "https://talent-iq-frontend-bice.vercel.app"
 ]
 
 app.add_middleware(
@@ -47,7 +50,7 @@ app.add_middleware(
 )
 
 
-# Database Dependency
+# Database dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -56,13 +59,13 @@ def get_db():
         db.close()
 
 
-# Root Endpoint
+# Root endpoint
 @app.get("/")
 def read_root():
     return {"message": "Welcome to TalentIQ API"}
 
 
-# Get Career Roles
+# Get career roles
 @app.get("/roles")
 def get_career_roles():
     return {"roles": get_all_roles()}
@@ -71,29 +74,36 @@ def get_career_roles():
 # Signup
 @app.post("/signup")
 def signup(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
+    try:
+        db_user = db.query(User).filter(User.email == user.email).first()
 
-    if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+        if db_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+
+        hashed_password = hash_password(user.password)
+
+        new_user = User(
+            email=user.email,
+            password=hashed_password
         )
 
-    hashed = hash_password(user.password)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
 
-    new_user = User(
-        email=user.email,
-        password=hashed
-    )
+        return {
+            "message": "User created successfully",
+            "user": {
+                "id": new_user.id,
+                "email": new_user.email
+            }
+        }
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return {
-        "message": "User created successfully",
-        "user": {"id": new_user.id, "email": new_user.email}
-    }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Login
@@ -118,11 +128,14 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": {"id": db_user.id, "email": db_user.email}
+        "user": {
+            "id": db_user.id,
+            "email": db_user.email
+        }
     }
 
 
-# Career Prediction
+# Career prediction
 @app.post("/predict_career")
 def predict_career_role(data: SkillsInput):
     predictions = predict_career_with_confidence(data.skills)
@@ -133,7 +146,7 @@ def predict_career_role(data: SkillsInput):
     }
 
 
-# Skill Gap Analysis
+# Skill gap analysis
 @app.post("/skill_gap_analysis")
 def skill_gap_analysis(data: dict):
     user_skills = data.get("skills", [])
@@ -156,7 +169,7 @@ def skill_gap_analysis(data: dict):
     return analysis
 
 
-# Career Roadmap
+# Career roadmap
 @app.get("/role_roadmap/{role}")
 def get_roadmap(role: str):
     roadmap = get_role_roadmap(role)
@@ -170,18 +183,16 @@ def get_roadmap(role: str):
     return roadmap
 
 
-# Detailed Roles
+# Detailed roles
 @app.get("/roles_detailed")
 def get_all_roles_detailed():
     roles = get_all_roles_list()
     return {"roles": roles}
 
 
-# Chatbot
+# AI chatbot
 @app.post("/chatbot")
 def chat_with_bot(data: dict):
-    from datetime import datetime
-
     message = data.get("message", "")
     history = data.get("history", [])
 
@@ -199,7 +210,7 @@ def chat_with_bot(data: dict):
     }
 
 
-# Resume Analyzer
+# Resume analysis
 @app.post("/analyze_resume")
 def analyze_resume(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
