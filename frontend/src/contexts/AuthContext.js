@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'https://service-hvuc.onrender.com';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
