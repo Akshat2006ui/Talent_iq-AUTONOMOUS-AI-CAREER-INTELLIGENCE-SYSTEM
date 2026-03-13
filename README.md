@@ -1,4 +1,4 @@
-# TalentIQ - AI-Powered Career Platform
+# TalentIQ - AUTONOMOUS-AI-CAREER-INTELLIGENCE-SYSTEM
 
 A comprehensive full-stack web application that helps users discover their ideal career path using AI-powered analysis, resume parsing, and intelligent career guidance.
 
